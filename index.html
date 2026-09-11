@@ -3,9 +3,29 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>نظام كاشير المحل - V50</title>
+<title>نظام كاشير المحل - V51 السحابي</title>
 <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+<!-- Firebase SDKs -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyC96iEdYEAJd4aNNWhGMD15QMY3ivY76xw",
+    authDomain: "coffee-spark-ai-barista-8b8d3.firebaseapp.com",
+    projectId: "coffee-spark-ai-barista-8b8d3",
+    storageBucket: "coffee-spark-ai-barista-8b8d3.firebasestorage.app",
+    messagingSenderId: "681322715395",
+    appId: "1:681322715395:web:50e55c5217557894fd7136"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const dbCloud = getFirestore(app);
+  window.dbCloud = dbCloud;
+  window.FirebaseSdk = { doc, setDoc, getDoc, onSnapshot };
+  window.dispatchEvent(new Event('firebase-ready'));
+</script>
 <style>
 *{box-sizing:border-box}
 body{
@@ -342,7 +362,6 @@ th{color:#94a3b8;font-weight:600;background:rgba(15,23,42,0.3)}
 <section id="workerReportPage" class="page">
   <h2 style="font-size:16px; margin-top:0;">👤 تقرير مبيعات العمال</h2>
   <div class="panel">
-    <!-- أزرار اختيار العمال المباشرة للمدير -->
     <div id="adminWorkerButtonsContainer" style="margin-bottom:14px; display:none;">
       <label style="color:#38bdf8; font-weight:bold; margin-bottom:6px;">اختر العامل لعرض تقريره:</label>
       <div id="workersTabsList" style="display:flex; flex-wrap:wrap; gap:6px; margin-top:4px;"></div>
@@ -557,7 +576,7 @@ th{color:#94a3b8;font-weight:600;background:rgba(15,23,42,0.3)}
 </div>
 
 <script>
-(function(){
+window.addEventListener('firebase-ready', () => {
 "use strict";
 const $=id=>document.getElementById(id);
 const LOGGED_CODE_KEY="cashier_active_license_code";
@@ -624,21 +643,36 @@ let cart = [];
 let currentViewingInvoiceNo = null;
 let posQrScanner = null;
 let productQrScanner = null;
+let unsubscribeCloud = null;
 
-function loadStoreDatabase(code){
-  const storeKey = "cashier_multicode_db_" + code;
-  let data = null;
-  try{ data = JSON.parse(localStorage.getItem(storeKey)||"null"); }catch(e){ data = null; }
-  if(!data) data = {products:[], sales:[], purchases:[], expenses:[], suppliers:[], workers:[], storeInfo:{name:"المحل (كود: " + code + ")", phone:"", address:"", footer:"شكراً لزيارتكم ❤️"}, nextInvoiceNo:1};
-  if(!Array.isArray(data.products)) data.products=[];
-  if(!Array.isArray(data.sales)) data.sales=[];
-  if(!Array.isArray(data.purchases)) data.purchases=[];
-  if(!Array.isArray(data.expenses)) data.expenses=[];
-  if(!Array.isArray(data.suppliers)) data.suppliers=[];
-  if(!Array.isArray(data.workers)) data.workers=[];
-  if(!data.storeInfo) data.storeInfo = {name:"المحل", phone:"", address:"", footer:"شكراً لزيارتكم ❤️"};
-  if(!Number.isInteger(data.nextInvoiceNo)||data.nextInvoiceNo<1) data.nextInvoiceNo=1;
-  return data;
+const { doc, setDoc, getDoc, onSnapshot } = window.FirebaseSdk;
+const dbCloud = window.dbCloud;
+
+async function loadStoreDatabase(code, callback){
+  const docRef = doc(dbCloud, "stores", code);
+  
+  // الاستماع للتحديثات الفورية سحابياً
+  if(unsubscribeCloud) unsubscribeCloud();
+  
+  unsubscribeCloud = onSnapshot(docRef, (docSnap) => {
+    if (docSnap.exists()) {
+      db = docSnap.data();
+    } else {
+      db = {products:[], sales:[], purchases:[], expenses:[], suppliers:[], workers:[], storeInfo:{name:"المحل (كود: " + code + ")", phone:"", address:"", footer:"شكراً لزيارتكم ❤️"}, nextInvoiceNo:1};
+      setDoc(docRef, db);
+    }
+    if(!Array.isArray(db.products)) db.products=[];
+    if(!Array.isArray(db.sales)) db.sales=[];
+    if(!Array.isArray(db.purchases)) db.purchases=[];
+    if(!Array.isArray(db.expenses)) db.expenses=[];
+    if(!Array.isArray(db.suppliers)) db.suppliers=[];
+    if(!Array.isArray(db.workers)) db.workers=[];
+    if(!db.storeInfo) db.storeInfo = {name:"المحل", phone:"", address:"", footer:"شكراً لزيارتكم ❤️"};
+    if(!Number.isInteger(db.nextInvoiceNo)||db.nextInvoiceNo<1) db.nextInvoiceNo=1;
+    
+    if(callback) callback(db);
+    refresh();
+  });
 }
 
 function checkAuth(){
@@ -650,21 +684,21 @@ function checkAuth(){
     currentCode = loggedCode;
     currentRole = loggedRole;
     currentWorkerName = loggedWorkerName;
-    db = loadStoreDatabase(currentCode);
     
-    if(!selectedAdminViewingWorker){
-      selectedAdminViewingWorker = currentWorkerName;
-    }
-    
-    $("currentUserBadge").textContent = (currentRole === 'admin' ? '👑 مدير' : '👨‍💼 ' + currentWorkerName) + ' (' + currentCode + ')';
-    $("authCodeOverlay").style.display="none";
-    $("authSelectionOverlay").style.display="none";
-    $("adminPassOverlay").style.display="none";
-    $("addWorkerModal").style.display="none";
-    
-    applyRolePermissions();
-    setLanguage(currentLang);
-    refresh();
+    loadStoreDatabase(currentCode, () => {
+      if(!selectedAdminViewingWorker){
+        selectedAdminViewingWorker = currentWorkerName;
+      }
+      
+      $("currentUserBadge").textContent = (currentRole === 'admin' ? '👑 مدير' : '👨‍💼 ' + currentWorkerName) + ' (' + currentCode + ')';
+      $("authCodeOverlay").style.display="none";
+      $("authSelectionOverlay").style.display="none";
+      $("adminPassOverlay").style.display="none";
+      $("addWorkerModal").style.display="none";
+      
+      applyRolePermissions();
+      setLanguage(currentLang);
+    });
   }else{
     $("authCodeOverlay").style.display="flex";
     $("authSelectionOverlay").style.display="none";
@@ -687,7 +721,7 @@ function applyRolePermissions(){
   }
 }
 
-$("authCodeForm").addEventListener("submit", e=>{
+$("authCodeForm").addEventListener("submit", async e=>{
   e.preventDefault();
   const code = $("storeCodeInput").value.trim().toUpperCase();
   if(!STORE_CREDENTIALS[code]){
@@ -695,11 +729,12 @@ $("authCodeForm").addEventListener("submit", e=>{
     return;
   }
   currentCode = code;
-  db = loadStoreDatabase(code);
   
-  $("authCodeOverlay").style.display = "none";
-  $("authSelectionOverlay").style.display = "flex";
-  renderWorkersSelectionList();
+  loadStoreDatabase(code, () => {
+    $("authCodeOverlay").style.display = "none";
+    $("authSelectionOverlay").style.display = "flex";
+    renderWorkersSelectionList();
+  });
 });
 
 $("backToCodeBtn").addEventListener("click", ()=>{
@@ -709,7 +744,7 @@ $("backToCodeBtn").addEventListener("click", ()=>{
 
 function renderWorkersSelectionList(){
   const container = $("workersListContainer");
-  if(!db.workers || db.workers.length === 0){
+  if(!db || !db.workers || db.workers.length === 0){
     container.innerHTML = '<div style="color:#64748b; font-size:12px; padding:6px; text-align:center;">لا توجد كاشيرات عمال مسجلة. اضغط ➕ لإضافة عامل.</div>';
     return;
   }
@@ -739,7 +774,7 @@ $("cancelAddWorkerBtn").addEventListener("click", ()=>{
   $("addWorkerModal").style.display = "none";
 });
 
-$("addWorkerForm").addEventListener("submit", e=>{
+$("addWorkerForm").addEventListener("submit", async e=>{
   e.preventDefault();
   const wName = $("newWorkerNameInput").value.trim();
   if(!wName) return;
@@ -750,7 +785,7 @@ $("addWorkerForm").addEventListener("submit", e=>{
   }
   
   db.workers.push({ id: Date.now(), name: wName });
-  persist();
+  await persist();
   $("addWorkerModal").style.display = "none";
   renderWorkersSelectionList();
   alert(`تم إنشاء كاشير العامل "${wName}" بنجاح!`);
@@ -796,18 +831,23 @@ const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;"
 const dateOnly=iso=>String(iso).slice(0,10);
 const today=()=>new Date().toISOString().slice(0,10);
 
-function persist(){
+async function persist(){
   if(currentCode && db){
-    localStorage.setItem("cashier_multicode_db_" + currentCode, JSON.stringify(db));
+    const docRef = doc(dbCloud, "stores", currentCode);
+    try {
+      await setDoc(docRef, db);
+    } catch(err) {
+      console.error("خطأ في مزامنة البيانات سحابياً:", err);
+    }
     refresh();
   }
 }
 
-function productById(id){return db ? db.products.find(p=>String(p.id)===String(id)) : null;}
+function productById(id){return db && db.products ? db.products.find(p=>String(p.id)===String(id)) : null;}
 
 function findProduct(q){
  q=String(q||"").trim().toLowerCase();
- if(!q || !db) return null;
+ if(!q || !db || !db.products) return null;
  return db.products.find(p=>String(p.barcode).toLowerCase()===q)||db.products.find(p=>String(p.name).toLowerCase().includes(q))||null;
 }
 
@@ -848,7 +888,7 @@ function addCart(p){
  renderCart();
 }
 
-function addFromScan(){
+async function addFromScan(){
  const q=$("scan").value.trim();
  if(!q){alert("اكتب Barcode أو اسم المنتج");$("scan").focus();return;}
  const p=findProduct(q);
@@ -866,7 +906,7 @@ function addFromScan(){
  addCart(p);$("scan").value="";$("productHint").innerHTML='<div class="success">تمت إضافة المنتج ✓</div>';$("scan").focus();
 }
 
-$("quickAddForm").addEventListener("submit", e=>{
+$("quickAddForm").addEventListener("submit", async e=>{
   e.preventDefault();
   const barcode = $("qBarcode").value.trim();
   const name = $("qName").value.trim();
@@ -888,7 +928,7 @@ $("quickAddForm").addEventListener("submit", e=>{
   };
 
   db.products.push(newProduct);
-  persist();
+  await persist();
 
   $("quickAddProductBox").style.display = "none";
   $("scan").value = "";
@@ -960,7 +1000,7 @@ function renderCart(){
  const diff=paid-finalTotal;
  $("cartTotal").textContent=money(finalTotal);
  $("change").textContent="الباقي: " + money(Math.max(0, diff));
- $("currentInvoiceNo").textContent=db.nextInvoiceNo;
+ if(db) $("currentInvoiceNo").textContent=db.nextInvoiceNo;
 }
 
 $("cartBody").addEventListener("click",e=>{
@@ -978,7 +1018,7 @@ $("clearCart").addEventListener("click",()=>{cart=[];renderCart()});
 function showReceipt(sale){
  currentViewingInvoiceNo = sale.invoiceNo;
  const rows=sale.items.map(i=>{
-   const p=productById(i.id||{});
+   const p=productById(i.id)||{};
    return `<tr><td>${esc(p.name||"منتج")}</td><td>${i.qty}</td><td>${money(p.sell||0)}</td><td>${money(i.qty*Number(p.sell||0))}</td></tr>`;
  }).join("");
  const st = db.storeInfo || {};
@@ -1002,7 +1042,7 @@ $("closeReceipt").addEventListener("click",()=>{$("receiptOverlay").hidden=true}
 $("printReceipt").addEventListener("click",()=>window.print());
 $("receiptOverlay").addEventListener("click",e=>{if(e.target===$("receiptOverlay"))$("receiptOverlay").hidden=true});
 
-$("completeSale").addEventListener("click",()=>{
+$("completeSale").addEventListener("click",async ()=>{
  if(!cart.length){alert("السلة فارغة");return;}
  let subtotal=cart.reduce((s,i)=>s+i.qty*Number(productById(i.id).sell),0);
  let discount=Math.max(0,Number($("discount").value)||0),total=Math.max(0,subtotal-discount),paid=Number($("paid").value)||0;
@@ -1019,10 +1059,9 @@ $("completeSale").addEventListener("click",()=>{
    items:cart.map(i=>({...i})),
    subtotal,discount,total,paid,profit
  };
- db.sales.push(sale);cart=[];$("discount").value=0;$("paid").value=0;persist();showReceipt(sale);
+ db.sales.push(sale);cart=[];$("discount").value=0;$("paid").value=0;await persist();showReceipt(sale);
 });
 
-// نظام أزرار العمال التفاعلية لعرض التقارير بسلاسة تامة
 function renderWorkerReport(){
   if(!db) return;
   
@@ -1092,10 +1131,10 @@ window.viewInvoice = function(invoiceNo){
   if(sale){ showReceipt(sale); }else{ alert("لم يتم العثور على الفاتورة!"); }
 };
 
-$("storeInfoForm").addEventListener("submit",e=>{
+$("storeInfoForm").addEventListener("submit",async e=>{
  e.preventDefault();
  db.storeInfo = { name: $("stName").value.trim(), phone: $("stPhone").value.trim(), address: $("stAddress").value.trim(), footer: $("stFooter").value.trim() };
- persist();
+ await persist();
  alert("تم حفظ بيانات المحل بنجاح!");
 });
 
@@ -1126,12 +1165,12 @@ $("importBackupBtn").addEventListener("click",()=>{
   if(!fileInput.files.length){ alert("اختر ملف JSON أولاً"); return; }
   const file = fileInput.files[0];
   const reader = new FileReader();
-  reader.onload = function(e){
+  reader.onload = async function(e){
     try{
       const importedData = JSON.parse(e.target.result);
       if(importedData && Array.isArray(importedData.products)){
         db = importedData;
-        persist();
+        await persist();
         alert("تم استرجاع النسخة بنجاح!");
       }else{ alert("ملف غير صالح!"); }
     }catch(err){ alert("خطأ في قراءة الملف!"); }
@@ -1139,7 +1178,7 @@ $("importBackupBtn").addEventListener("click",()=>{
   reader.readAsText(file);
 });
 
-$("productForm").addEventListener("submit",e=>{
+$("productForm").addEventListener("submit",async e=>{
  e.preventDefault();
  const id=$("editId").value?Number($("editId").value):Date.now();
  const buyPrice = Number($("pBuy").value)||0;
@@ -1149,38 +1188,38 @@ $("productForm").addEventListener("submit",e=>{
  if(!p.barcode||!p.name){alert("Barcode واسم المنتج مطلوبان");return;}
  if(db.products.some(x=>x.barcode===p.barcode&&x.id!==id)){alert("Barcode موجود مسبقاً");return;}
  const idx=db.products.findIndex(x=>x.id===id);if(idx>=0)db.products[idx]=p;else db.products.push(p);
- e.target.reset();$("editId").value="";$("pMin").value=5;persist();
+ e.target.reset();$("editId").value="";$("pMin").value=5;await persist();
  alert("تم حفظ المنتج ✓");
 });
 $("cancelEdit").addEventListener("click",()=>{$("productForm").reset();$("editId").value="";$("pMin").value=5});
 $("productSearch").addEventListener("input",renderProducts);
 
-$("productsTable").addEventListener("click",e=>{
+$("productsTable").addEventListener("click",async e=>{
  const b=e.target.closest("button[data-action]");if(!b)return;const p=productById(Number(b.dataset.id));if(!p)return;
  if(b.dataset.action==="edit"){ 
    $("editId").value=p.id; $("pBarcode").value=p.barcode; $("pName").value=p.name; $("pCategory").value=p.category||""; $("pStock").value=p.stock; $("pBuy").value=p.buy; $("pSell").value=p.sell; $("pMin").value=p.min;
    window.scrollTo({top:0,behavior:"smooth"});
  }
- if(b.dataset.action==="delete"&&confirm("حذف المنتج؟")){db.products=db.products.filter(x=>x.id!==p.id);persist();}
+ if(b.dataset.action==="delete"&&confirm("حذف المنتج؟")){db.products=db.products.filter(x=>x.id!==p.id);await persist();}
 });
 
-$("supplierForm").addEventListener("submit",e=>{
+$("supplierForm").addEventListener("submit",async e=>{
   e.preventDefault();
   const name=$("sName").value.trim(), phone=$("sPhone").value.trim(), note=$("sNote").value.trim();
   if(!name) return;
   db.suppliers.push({id:Date.now(), name, phone, note});
-  e.target.reset(); persist(); alert("تمت إضافة المورد");
+  e.target.reset(); await persist(); alert("تمت إضافة المورد");
 });
 
 $("purchaseProduct").addEventListener("change",()=>{const p=productById($("purchaseProduct").value);if(p)$("purchasePrice").value=p.buy});
-$("purchaseForm").addEventListener("submit",e=>{
+$("purchaseForm").addEventListener("submit",async e=>{
  e.preventDefault();const p=productById($("purchaseProduct").value),qty=Number($("purchaseQty").value),price=Number($("purchasePrice").value), sId=$("purchaseSupplier").value;
  if(!p||qty<=0){alert("اختر المنتج والكمية");return;}
- p.stock+=qty;p.buy=price;db.purchases.push({id:Date.now(),date:new Date().toISOString(),productId:p.id,supplierId:sId||null,qty,price,total:qty*price});e.target.reset();persist();
+ p.stock+=qty;p.buy=price;db.purchases.push({id:Date.now(),date:new Date().toISOString(),productId:p.id,supplierId:sId||null,qty,price,total:qty*price});e.target.reset();await persist();
 });
-$("expenseForm").addEventListener("submit",e=>{
+$("expenseForm").addEventListener("submit",async e=>{
  e.preventDefault();const amount=Number($("expenseAmount").value)||0;if(amount<0)return;
- db.expenses.push({id:Date.now(),date:new Date().toISOString(),name:$("expenseName").value.trim(),amount,note:$("expenseNote").value.trim()});e.target.reset();persist();
+ db.expenses.push({id:Date.now(),date:new Date().toISOString(),name:$("expenseName").value.trim(),amount,note:$("expenseNote").value.trim()});e.target.reset();await persist();
 });
 $("reportForm").addEventListener("submit",e=>{
  e.preventDefault();const f=$("fromDate").value||"0000-01-01",t=$("toDate").value||"9999-12-31";
@@ -1190,7 +1229,7 @@ $("reportForm").addEventListener("submit",e=>{
 });
 
 function renderBarcodeOptions(){
- if(!db) return;
+ if(!db || !db.products) return;
  $("barcodeProductSelect").innerHTML='<option value="">اختر المنتج...</option>' + db.products.map(p=>`<option value="${p.id}">${esc(p.name)} (${esc(p.barcode)})</option>`).join("");
 }
 
@@ -1205,7 +1244,7 @@ function renderStoreInfo(){
 }
 
 function renderProducts(){
- if(!db) return;
+ if(!db || !db.products) return;
  const q=$("productSearch").value.trim().toLowerCase();
  const ps=db.products.filter(p=>!q||p.name.toLowerCase().includes(q)||String(p.barcode).toLowerCase().includes(q)||(p.category&&p.category.toLowerCase().includes(q)));
  $("productsTable").innerHTML=`<table><thead><tr><th>Barcode</th><th>الاسم</th><th>Stock</th><th>بيع</th><th></th></tr></thead><tbody>`+
@@ -1213,7 +1252,7 @@ function renderProducts(){
 }
 
 function renderSuppliers(){
- if(!db) return;
+ if(!db || !db.suppliers) return;
  $("suppliersTable").innerHTML = `<table><thead><tr><th>المورد</th><th>الهاتف</th><th>ملاحظات</th></tr></thead><tbody>` +
  db.suppliers.map(s=>`<tr><td>${esc(s.name)}</td><td>${esc(s.phone||"-")}</td><td>${esc(s.note||"-")}</td></tr>`).join("") + `</tbody></table>`;
 }
@@ -1241,6 +1280,7 @@ function renderDashboard(){
 }
 
 function refresh(){
+  if(!db) return;
   if(currentRole === 'admin') {
     renderStoreInfo();
     renderBarcodeOptions();
@@ -1254,7 +1294,7 @@ function refresh(){
 }
 
 checkAuth();
-})();
+});
 </script>
 </body>
 </html>
