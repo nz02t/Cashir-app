@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>نظام كاشير المحل - V59 المحدث نهائياً</title>
+<title>نظام كاشير المحل - V60 النهائي المضبوط</title>
 <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
 <!-- Supabase SDK -->
@@ -638,26 +638,28 @@ let posQrScanner = null;
 let productQrScanner = null;
 let realtimeChannel = null;
 
-// دالة جلب البيانات السحابية الحقيقية (تضمن عدم تصفير البيانات أبداً)
+// تحميل البيانات سحابياً بشكل مضمون لمنع أي تصفير
 async function loadStoreDatabase(code, callback){
   db = null;
+  code = String(code).trim().toUpperCase();
+  
   if(supabaseClient){
     try {
       const { data, error } = await supabaseClient
         .from('stores_data')
         .select('data')
         .eq('code', code)
-        .single();
+        .maybeSingle();
 
       if(data && data.data){
         db = data.data;
       }
     } catch(err) {
-      console.log("خطأ في الاتصال بالسحابة");
+      console.log("خطأ سحابي أثناء الجلب");
     }
   }
 
-  // إذا لم يكن هناك سجل سابق نهائياً في السحابة لهذا الكود، ننشئ سجلاً جديداً نظيفاً
+  // إذا لم يتم العثور على سجل مسبق، يتم إنشاء بنية جديدة وحفظها فوراً
   if(!db){
     db = {
       products:[], sales:[], purchases:[], expenses:[], suppliers:[], workers:[],
@@ -673,7 +675,7 @@ async function loadStoreDatabase(code, callback){
   if(callback) callback(db);
   refresh();
 
-  // تفعيل المزامنة اللحظية الفورية
+  // تفعيل المزامنة الفورية عبر Supabase Realtime
   if(supabaseClient && !realtimeChannel){
     try {
       realtimeChannel = supabaseClient
@@ -714,7 +716,7 @@ function checkAuth(){
     
     loadStoreDatabase(currentCode, () => {
       if(!selectedAdminViewingWorker){
-        selectedAdminViewingWorker = currentWorkerName;
+        selectedAdminViewingWorker = loggedRole === 'admin' ? 'المدير' : currentWorkerName;
       }
       $("currentUserBadge").textContent = (currentRole === 'admin' ? '👑 مدير' : '👨‍💼 ' + currentWorkerName) + ' (' + currentCode + ')';
       $("authCodeOverlay").style.display="none";
@@ -752,7 +754,7 @@ $("submitCodeBtn").addEventListener("click", () => {
     return;
   }
   currentCode = code;
-  localStorage.setItem(LOGGED_CODE_KEY, code); // تثبيت الكود في التخزين المحلي فوراً
+  localStorage.setItem(LOGGED_CODE_KEY, code);
   loadStoreDatabase(code, () => {
     $("authCodeOverlay").style.display = "none";
     $("authSelectionOverlay").style.display = "flex";
