@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>نظام كاشير المحل - V60 النهائي المضبوط</title>
+<title>نظام كاشير المحل - V61 الآمن نهائياً</title>
 <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
 <!-- Supabase SDK -->
@@ -602,7 +602,7 @@ const i18nData = {
   en: {
     menu:"Main Menu", pos:"POS / Cashier", dashboard:"Dashboard", products:"Products", returns:"Sales Returns", barcode:"Print Barcode", storeInfo:"Store Info", backup:"Backup & Restore", suppliers:"Suppliers", purchases:"Purchases", expenses:"Expenses", reports:"Reports", logout:"Change Account",
     addProduct:"Add Product", camScan:"📷 Scan", add:"➕ Add", camHint:"📷 Point camera at barcode:", close:"Close", product:"Product", qty:"Qty", price:"Price", total:"Total", payment:"Payment", invNo:"Invoice #:", walkIn:"Walk-in Customer", discount:"Discount", paidAmt:"Paid Amount", grandTotal:"Total:", changeDebt:"Change:", checkout:"Complete Sale", clear:"Clear Cart",
-    lowStockWarn:"⚠️ Low Stock Alert (≤ 5) !", todaySales:"Today's Sales", todayProfit:"Today's Profit", todayExp:"Today's Expenses", netProfit:"Net Profit", cash:"Current Cash", lowStockTitle:"Restock Needed", recentInv:"Recent Invoices",
+    lowStockWarn:"⚠️ Low Stock Alert (≤ 5) !", todaySales:"Today's Sales", todayProfit:"Today's Profit", todayExp:"Today's Expenses", netProfit:"Net Profit", cash:"CurrentCash", lowStockTitle:"Restock Needed", recentInv:"Recent Invoices",
     scanBtn:"📷 Scan Barcode", catSelect:"Select Category...", saveProduct:"Save Product", cancel:"Cancel",
     cat1:"🍹 Beverages & Juices", cat2:"🥦 Fruits & Vegetables", cat3:"🧀 Dairy Products", cat4:"🥫 Canned Goods", cat5:"🌾 Grains & Oils", cat6:"🍫 Sweets & Chocolates", cat7:"🍞 Bakery & Flour", cat8:"🥩 Meat & Fish", cat9:"🧊 Frozen Foods", cat10:"🧂 Spices & Nuts", cat11:"🧼 Detergents & Household", cat12:"📦 Other Grocery Items",
     chooseProduct:"Choose Product", genBarcode:"Generate Barcode", printBtn:"🖨️ Print Label", storeName:"Store Name", phone:"Phone Number", address:"Address", receiptMsg:"Receipt Message", saveStore:"Save Store Info", exportBackup:"Export Backup", exportHint:"Download data file.", exportBtn:"📥 Download", importBackup:"Restore Backup", importHint:"Select JSON file.", importBtn:"📤 Restore Now", addSupplier:"Add Supplier", saveSupplier:"Save Supplier", suppliersList:"Suppliers List", selectSupplier:"Select Supplier", savePurchase:"Save Purchase", saveExpense:"Save Expense", calcReport:"Calculate Report", printReceipt:"🖨️ Print"
@@ -638,11 +638,11 @@ let posQrScanner = null;
 let productQrScanner = null;
 let realtimeChannel = null;
 
-// تحميل البيانات سحابياً بشكل مضمون لمنع أي تصفير
+// تحميل البيانات سحابياً مع نظام الحماية والأمان ضد التصفير
 async function loadStoreDatabase(code, callback){
-  db = null;
   code = String(code).trim().toUpperCase();
-  
+  db = null;
+
   if(supabaseClient){
     try {
       const { data, error } = await supabaseClient
@@ -651,15 +651,23 @@ async function loadStoreDatabase(code, callback){
         .eq('code', code)
         .maybeSingle();
 
-      if(data && data.data){
+      if(data && data.data && Array.isArray(data.data.products)){
         db = data.data;
       }
     } catch(err) {
-      console.log("خطأ سحابي أثناء الجلب");
+      console.log("خطأ في الاتصال، جاري استخدام النسخة المحلية");
     }
   }
 
-  // إذا لم يتم العثور على سجل مسبق، يتم إنشاء بنية جديدة وحفظها فوراً
+  // إذا لم توجد بيانات سحابياً، نفحص الذاكرة المحلية للجهاز أولاً قبل إنشاء داتا فارغة
+  if(!db){
+    const localBackup = localStorage.getItem("fallback_db_" + code);
+    if(localBackup){
+      try { db = JSON.parse(localBackup); } catch(e){}
+    }
+  }
+
+  // إذا لم توجد نهائياً، ننشئ قاعدة جديدة نظيفة
   if(!db){
     db = {
       products:[], sales:[], purchases:[], expenses:[], suppliers:[], workers:[],
@@ -672,10 +680,13 @@ async function loadStoreDatabase(code, callback){
   }
 
   validateDbStructure();
+  // حفظ نسخة احتياطية محلية دائماً لضمان عدم الضياع
+  localStorage.setItem("fallback_db_" + code, JSON.stringify(db));
+
   if(callback) callback(db);
   refresh();
 
-  // تفعيل المزامنة الفورية عبر Supabase Realtime
+  // تفعيل المزامنة اللحظية الفورية
   if(supabaseClient && !realtimeChannel){
     try {
       realtimeChannel = supabaseClient
@@ -684,6 +695,7 @@ async function loadStoreDatabase(code, callback){
           if(payload.new && payload.new.data){
             db = payload.new.data;
             validateDbStructure();
+            localStorage.setItem("fallback_db_" + code, JSON.stringify(db));
             refresh();
           }
         })
@@ -860,6 +872,7 @@ const today=()=>new Date().toISOString().slice(0,10);
 
 async function persist(){
   if(currentCode && db){
+    localStorage.setItem("fallback_db_" + currentCode, JSON.stringify(db));
     if(supabaseClient){
       try {
         await supabaseClient.from('stores_data').upsert({ code: currentCode, data: db });
