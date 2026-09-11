@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>نظام كاشير المحل - V55 السحابي</title>
+<title>نظام كاشير المحل - V56 السحابي المستقر</title>
 <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
 <!-- Supabase SDK -->
@@ -570,10 +570,17 @@ const STORE_CREDENTIALS = {
   "STORE-9999": "admin2026"
 };
 
-// تهيئة اتصال Supabase السحابي
+// تهيئة اتصال Supabase السحابي الآمن
 const SUPABASE_URL = "https://hlrswiqtqgqwzdheaosy.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_a3z_hPZlsz1e1yja-AXtOQ_xrN58CIt";
-const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+let supabaseClient = null;
+try {
+  if(window.supabase) {
+    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+  }
+} catch(e) {
+  console.warn("Supabase init warning:", e);
+}
 
 const i18nData = {
   ar: {
@@ -593,7 +600,7 @@ const i18nData = {
     chooseProduct:"Choisir le Produit", genBarcode:"Générer Code-barres", printBtn:"🖨️ Imprimer", storeName:"Nom du Magasin", phone:"N° Téléphone", address:"Adresse", receiptMsg:"Message", saveStore:"Enregistrer", exportBackup:"Exporter", exportHint:"Télécharger la sauvegarde.", exportBtn:"📥 Télécharger", importBackup:"Restaurer", importHint:"Choisir le fichier.", importBtn:"📤 Restaurer", addSupplier:"Nouveau Fournisseur", saveSupplier:"Enregistrer", suppliersList:"Fournisseurs", selectSupplier:"Choisir Fournisseur", savePurchase:"Enregistrer Achat", saveExpense:"Enregistrer Dépense", calcReport:"Calculer", printReceipt:"🖨️ Imprimer"
   },
   en: {
-    menu:"Main Menu", pos:"POS / Cashier", dashboard:"Dashboard", products:"Products", returns:"Sales Returns", barcode:"Print Barcode", storeInfo:"Store Info", backup:"Backup & Restore", suppliers:"Suppliers", purchases:"Purchases", expenses:"Expenses", reports:"Reports", logout:"Change Account",
+    menu:"Main Menu", pos:"POS / Cashier", dashboard:"Dashboard", products:"Products", returns:"Sales Returns", barcode:"Print Barcode", storeInfo:"Store Info", backup:"Backup & Restore",suppliers:"Suppliers", purchases:"Purchases", expenses:"Expenses", reports:"Reports", logout:"Change Account",
     addProduct:"Add Product", camScan:"📷 Scan", add:"➕ Add", camHint:"📷 Point camera at barcode:", close:"Close", product:"Product", qty:"Qty", price:"Price", total:"Total", payment:"Payment", invNo:"Invoice #:", walkIn:"Walk-in Customer", discount:"Discount", paidAmt:"Paid Amount", grandTotal:"Total:", changeDebt:"Change:", checkout:"Complete Sale", clear:"Clear Cart",
     lowStockWarn:"⚠️ Low Stock Alert (≤ 5) !", todaySales:"Today's Sales", todayProfit:"Today's Profit", todayExp:"Today's Expenses", netProfit:"Net Profit", cash:"Current Cash", lowStockTitle:"Restock Needed", recentInv:"Recent Invoices",
     scanBtn:"📷 Scan Barcode", catSelect:"Select Category...", saveProduct:"Save Product", cancel:"Cancel",
@@ -631,24 +638,55 @@ let posQrScanner = null;
 let productQrScanner = null;
 let realtimeChannel = null;
 
+// دالة تحميل البيانات مع حماية فائقة لسرعة الاستجابة وعدم التعليق أبداً
 async function loadStoreDatabase(code, callback){
-  try {
-    const { data, error } = await supabaseClient
-      .from('stores_data')
-      .select('data')
-      .eq('code', code)
-      .single();
-
-    if (data && data.data) {
-      db = data.data;
-    } else {
-      db = {products:[], sales:[], purchases:[], expenses:[], suppliers:[], workers:[], storeInfo:{name:"المحل (كود: " + code + ")", phone:"", address:"", footer:"شكراً لزيارتكم ❤️"}, nextInvoiceNo:1};
-      await supabaseClient.from('stores_data').upsert({ code: code, data: db });
-    }
-  } catch (err) {
+  const storageKey = "cashier_local_store_" + code;
+  const saved = localStorage.getItem(storageKey);
+  if(saved){
+    try{ db = JSON.parse(saved); }catch(e){ db = null; }
+  }
+  if(!db){
     db = {products:[], sales:[], purchases:[], expenses:[], suppliers:[], workers:[], storeInfo:{name:"المحل (كود: " + code + ")", phone:"", address:"", footer:"شكراً لزيارتكم ❤️"}, nextInvoiceNo:1};
   }
 
+  // محاولة الجلب السحابي في الخلفية بدون حجب واجهة المستخدم
+  if(supabaseClient){
+    supabaseClient.from('stores_data').select('data').eq('code', code).single().then(({data, error}) => {
+      if(data && data.data) {
+        db = data.data;
+        validateDbStructure();
+        localStorage.setItem(storageKey, JSON.stringify(db));
+        refresh();
+      }
+    }).catch(err => {
+      console.log("الوضع المحلي نشط (فشل الاتصال السحابي المؤقت)");
+    });
+  }
+
+  validateDbStructure();
+  if(callback) callback(db);
+  refresh();
+
+  // تفعيل المزامنة اللحظية في الخلفية
+  if(supabaseClient && !realtimeChannel){
+    try {
+      realtimeChannel = supabaseClient
+        .channel('public:stores_data:code=eq.' + code)
+        .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'stores_data', filter: 'code=eq.' + code }, payload => {
+          if(payload.new && payload.new.data){
+            db = payload.new.data;
+            validateDbStructure();
+            localStorage.setItem(storageKey, JSON.stringify(db));
+            refresh();
+          }
+        })
+        .subscribe();
+    } catch(e) {}
+  }
+}
+
+function validateDbStructure(){
+  if(!db) db = {};
   if(!Array.isArray(db.products)) db.products=[];
   if(!Array.isArray(db.sales)) db.sales=[];
   if(!Array.isArray(db.purchases)) db.purchases=[];
@@ -657,21 +695,6 @@ async function loadStoreDatabase(code, callback){
   if(!Array.isArray(db.workers)) db.workers=[];
   if(!db.storeInfo) db.storeInfo = {name:"المحل", phone:"", address:"", footer:"شكراً لزيارتكم ❤️"};
   if(!Number.isInteger(db.nextInvoiceNo)||db.nextInvoiceNo<1) db.nextInvoiceNo=1;
-
-  if(callback) callback(db);
-  refresh();
-
-  // تفعيل المزامنة اللحظية (Realtime) من السحابة
-  if(realtimeChannel) { supabaseClient.removeChannel(realtimeChannel); }
-  realtimeChannel = supabaseClient
-    .channel('public:stores_data:code=eq.' + code)
-    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'stores_data', filter: 'code=eq.' + code }, payload => {
-      if(payload.new && payload.new.data){
-        db = payload.new.data;
-        refresh();
-      }
-    })
-    .subscribe();
 }
 
 function checkAuth(){
@@ -829,10 +852,12 @@ const today=()=>new Date().toISOString().slice(0,10);
 
 async function persist(){
   if(currentCode && db){
-    try {
-      await supabaseClient.from('stores_data').upsert({ code: currentCode, data: db });
-    } catch(err) {
-      console.error("خطأ في المزامنة السحابية:", err);
+    const storageKey = "cashier_local_store_" + currentCode;
+    localStorage.setItem(storageKey, JSON.stringify(db));
+    if(supabaseClient){
+      supabaseClient.from('stores_data').upsert({ code: currentCode, data: db }).then(()=>{}, err=>{
+        console.log("تخزين محلي فقط (فشل الرفع السحابي المؤقت)");
+      });
     }
     refresh();
   }
