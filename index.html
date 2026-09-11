@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>نظام كاشير المحل - V56 السحابي المستقر</title>
+<title>نظام كاشير المحل - V57 السحابي المتكامل</title>
 <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
 <!-- Supabase SDK -->
@@ -570,7 +570,7 @@ const STORE_CREDENTIALS = {
   "STORE-9999": "admin2026"
 };
 
-// تهيئة اتصال Supabase السحابي الآمن
+// إعدادات Supabase السحابية
 const SUPABASE_URL = "https://hlrswiqtqgqwzdheaosy.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_a3z_hPZlsz1e1yja-AXtOQ_xrN58CIt";
 let supabaseClient = null;
@@ -600,7 +600,7 @@ const i18nData = {
     chooseProduct:"Choisir le Produit", genBarcode:"Générer Code-barres", printBtn:"🖨️ Imprimer", storeName:"Nom du Magasin", phone:"N° Téléphone", address:"Adresse", receiptMsg:"Message", saveStore:"Enregistrer", exportBackup:"Exporter", exportHint:"Télécharger la sauvegarde.", exportBtn:"📥 Télécharger", importBackup:"Restaurer", importHint:"Choisir le fichier.", importBtn:"📤 Restaurer", addSupplier:"Nouveau Fournisseur", saveSupplier:"Enregistrer", suppliersList:"Fournisseurs", selectSupplier:"Choisir Fournisseur", savePurchase:"Enregistrer Achat", saveExpense:"Enregistrer Dépense", calcReport:"Calculer", printReceipt:"🖨️ Imprimer"
   },
   en: {
-    menu:"Main Menu", pos:"POS / Cashier", dashboard:"Dashboard", products:"Products", returns:"Sales Returns", barcode:"Print Barcode", storeInfo:"Store Info", backup:"Backup & Restore",suppliers:"Suppliers", purchases:"Purchases", expenses:"Expenses", reports:"Reports", logout:"Change Account",
+    menu:"Main Menu", pos:"POS / Cashier", dashboard:"Dashboard", products:"Products", returns:"Sales Returns", barcode:"Print Barcode", storeInfo:"Store Info", backup:"Backup & Restore", suppliers:"Suppliers", purchases:"Purchases", expenses:"Expenses", reports:"Reports", logout:"Change Account",
     addProduct:"Add Product", camScan:"📷 Scan", add:"➕ Add", camHint:"📷 Point camera at barcode:", close:"Close", product:"Product", qty:"Qty", price:"Price", total:"Total", payment:"Payment", invNo:"Invoice #:", walkIn:"Walk-in Customer", discount:"Discount", paidAmt:"Paid Amount", grandTotal:"Total:", changeDebt:"Change:", checkout:"Complete Sale", clear:"Clear Cart",
     lowStockWarn:"⚠️ Low Stock Alert (≤ 5) !", todaySales:"Today's Sales", todayProfit:"Today's Profit", todayExp:"Today's Expenses", netProfit:"Net Profit", cash:"Current Cash", lowStockTitle:"Restock Needed", recentInv:"Recent Invoices",
     scanBtn:"📷 Scan Barcode", catSelect:"Select Category...", saveProduct:"Save Product", cancel:"Cancel",
@@ -638,36 +638,42 @@ let posQrScanner = null;
 let productQrScanner = null;
 let realtimeChannel = null;
 
-// دالة تحميل البيانات مع حماية فائقة لسرعة الاستجابة وعدم التعليق أبداً
+// تحميل البيانات مباشرة من السحابة لضمان المزامنة التامة بين كل المتصفحات
 async function loadStoreDatabase(code, callback){
-  const storageKey = "cashier_local_store_" + code;
-  const saved = localStorage.getItem(storageKey);
-  if(saved){
-    try{ db = JSON.parse(saved); }catch(e){ db = null; }
-  }
-  if(!db){
-    db = {products:[], sales:[], purchases:[], expenses:[], suppliers:[], workers:[], storeInfo:{name:"المحل (كود: " + code + ")", phone:"", address:"", footer:"شكراً لزيارتكم ❤️"}, nextInvoiceNo:1};
+  db = null;
+  if(supabaseClient){
+    try {
+      const { data, error } = await supabaseClient
+        .from('stores_data')
+        .select('data')
+        .eq('code', code)
+        .single();
+
+      if(data && data.data){
+        db = data.data;
+      }
+    } catch(err) {
+      console.log("خطأ في الاتصال السحابي، جاري فحص المخزون المحلي");
+    }
   }
 
-  // محاولة الجلب السحابي في الخلفية بدون حجب واجهة المستخدم
-  if(supabaseClient){
-    supabaseClient.from('stores_data').select('data').eq('code', code).single().then(({data, error}) => {
-      if(data && data.data) {
-        db = data.data;
-        validateDbStructure();
-        localStorage.setItem(storageKey, JSON.stringify(db));
-        refresh();
-      }
-    }).catch(err => {
-      console.log("الوضع المحلي نشط (فشل الاتصال السحابي المؤقت)");
-    });
+  // إذا لم توجد بيانات سحابياً، ننشئ بيانات جديدة ونحفظها في السحابة فوراً
+  if(!db){
+    db = {
+      products:[], sales:[], purchases:[], expenses:[], suppliers:[], workers:[],
+      storeInfo:{name:"المحل (كود: " + code + ")", phone:"", address:"", footer:"شكراً لزيارتكم ❤️"},
+      nextInvoiceNo:1
+    };
+    if(supabaseClient){
+      await supabaseClient.from('stores_data').upsert({ code: code, data: db });
+    }
   }
 
   validateDbStructure();
   if(callback) callback(db);
   refresh();
 
-  // تفعيل المزامنة اللحظية في الخلفية
+  // تفعيل المزامنة اللحظية الفورية بين الأجهزة والمتصفحات
   if(supabaseClient && !realtimeChannel){
     try {
       realtimeChannel = supabaseClient
@@ -676,7 +682,6 @@ async function loadStoreDatabase(code, callback){
           if(payload.new && payload.new.data){
             db = payload.new.data;
             validateDbStructure();
-            localStorage.setItem(storageKey, JSON.stringify(db));
             refresh();
           }
         })
@@ -769,7 +774,7 @@ $("backToCodeBtn").addEventListener("click", ()=>{
 function renderWorkersSelectionList(){
   const container = $("workersListContainer");
   if(!db || !db.workers || db.workers.length === 0){
-    container.innerHTML = '<div style="color:#64748b; font-size:12px; padding:6px; text-align:center;">لا توجد كاشيرات عمال مسجلة. اضغط ➕ لإضافة عامل.</div>';
+    container.innerHTML = '<div style="color:#64748b; font-size:12px; padding:6px; text-align:center;">لا توجد عمال مسجلة. اضغط ➕ لإضافة عامل.</div>';
     return;
   }
   container.innerHTML = db.workers.map(w=>`
@@ -852,12 +857,12 @@ const today=()=>new Date().toISOString().slice(0,10);
 
 async function persist(){
   if(currentCode && db){
-    const storageKey = "cashier_local_store_" + currentCode;
-    localStorage.setItem(storageKey, JSON.stringify(db));
     if(supabaseClient){
-      supabaseClient.from('stores_data').upsert({ code: currentCode, data: db }).then(()=>{}, err=>{
-        console.log("تخزين محلي فقط (فشل الرفع السحابي المؤقت)");
-      });
+      try {
+        await supabaseClient.from('stores_data').upsert({ code: currentCode, data: db });
+      } catch(err) {
+        console.error("خطأ في المزامنة السحابية:", err);
+      }
     }
     refresh();
   }
