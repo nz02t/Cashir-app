@@ -3,9 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>نظام كاشير المحل - V53</title>
+<title>نظام كاشير المحل - V55 السحابي</title>
 <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+<!-- Supabase SDK -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <style>
 *{box-sizing:border-box}
 body{
@@ -555,29 +557,7 @@ th{color:#94a3b8;font-weight:600;background:rgba(15,23,42,0.3)}
   </div>
 </div>
 
-<!-- Firebase SDKs -->
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-  import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
-  const firebaseConfig = {
-    apiKey: "AIzaSyC96iEdYEAJd4aNNWhGMD15QMY3ivY76xw",
-    authDomain: "coffee-spark-ai-barista-8b8d3.firebaseapp.com",
-    projectId: "coffee-spark-ai-barista-8b8d3",
-    storageBucket: "coffee-spark-ai-barista-8b8d3.firebasestorage.app",
-    messagingSenderId: "681322715395",
-    appId: "1:681322715395:web:50e55c5217557894fd7136"
-  };
-
-  const app = initializeApp(firebaseConfig);
-  const dbCloud = getFirestore(app);
-  window.dbCloud = dbCloud;
-  window.FirebaseSdk = { doc, setDoc, getDoc, onSnapshot };
-  window.dispatchEvent(new Event('firebase-ready'));
-</script>
-
 <script>
-window.addEventListener('firebase-ready', () => {
 "use strict";
 const $=id=>document.getElementById(id);
 const LOGGED_CODE_KEY="cashier_active_license_code";
@@ -589,6 +569,11 @@ const STORE_CREDENTIALS = {
   "STORE-1111": "abcd",
   "STORE-9999": "admin2026"
 };
+
+// تهيئة اتصال Supabase السحابي
+const SUPABASE_URL = "https://hlrswiqtqgqwzdheaosy.supabase.co";
+const SUPABASE_ANON_KEY = "sb_publishable_a3z_hPZlsz1e1yja-AXtOQ_xrN58CIt";
+const supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 const i18nData = {
   ar: {
@@ -644,34 +629,49 @@ let cart = [];
 let currentViewingInvoiceNo = null;
 let posQrScanner = null;
 let productQrScanner = null;
-let unsubscribeCloud = null;
-
-const { doc, setDoc, getDoc, onSnapshot } = window.FirebaseSdk;
-const dbCloud = window.dbCloud;
+let realtimeChannel = null;
 
 async function loadStoreDatabase(code, callback){
-  const docRef = doc(dbCloud, "stores", code);
-  if(unsubscribeCloud) unsubscribeCloud();
-  
-  unsubscribeCloud = onSnapshot(docRef, (docSnap) => {
-    if (docSnap.exists()) {
-      db = docSnap.data();
+  try {
+    const { data, error } = await supabaseClient
+      .from('stores_data')
+      .select('data')
+      .eq('code', code)
+      .single();
+
+    if (data && data.data) {
+      db = data.data;
     } else {
       db = {products:[], sales:[], purchases:[], expenses:[], suppliers:[], workers:[], storeInfo:{name:"المحل (كود: " + code + ")", phone:"", address:"", footer:"شكراً لزيارتكم ❤️"}, nextInvoiceNo:1};
-      setDoc(docRef, db);
+      await supabaseClient.from('stores_data').upsert({ code: code, data: db });
     }
-    if(!Array.isArray(db.products)) db.products=[];
-    if(!Array.isArray(db.sales)) db.sales=[];
-    if(!Array.isArray(db.purchases)) db.purchases=[];
-    if(!Array.isArray(db.expenses)) db.expenses=[];
-    if(!Array.isArray(db.suppliers)) db.suppliers=[];
-    if(!Array.isArray(db.workers)) db.workers=[];
-    if(!db.storeInfo) db.storeInfo = {name:"المحل", phone:"", address:"", footer:"شكراً لزيارتكم ❤️"};
-    if(!Number.isInteger(db.nextInvoiceNo)||db.nextInvoiceNo<1) db.nextInvoiceNo=1;
-    
-    if(callback) callback(db);
-    refresh();
-  });
+  } catch (err) {
+    db = {products:[], sales:[], purchases:[], expenses:[], suppliers:[], workers:[], storeInfo:{name:"المحل (كود: " + code + ")", phone:"", address:"", footer:"شكراً لزيارتكم ❤️"}, nextInvoiceNo:1};
+  }
+
+  if(!Array.isArray(db.products)) db.products=[];
+  if(!Array.isArray(db.sales)) db.sales=[];
+  if(!Array.isArray(db.purchases)) db.purchases=[];
+  if(!Array.isArray(db.expenses)) db.expenses=[];
+  if(!Array.isArray(db.suppliers)) db.suppliers=[];
+  if(!Array.isArray(db.workers)) db.workers=[];
+  if(!db.storeInfo) db.storeInfo = {name:"المحل", phone:"", address:"", footer:"شكراً لزيارتكم ❤️"};
+  if(!Number.isInteger(db.nextInvoiceNo)||db.nextInvoiceNo<1) db.nextInvoiceNo=1;
+
+  if(callback) callback(db);
+  refresh();
+
+  // تفعيل المزامنة اللحظية (Realtime) من السحابة
+  if(realtimeChannel) { supabaseClient.removeChannel(realtimeChannel); }
+  realtimeChannel = supabaseClient
+    .channel('public:stores_data:code=eq.' + code)
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'stores_data', filter: 'code=eq.' + code }, payload => {
+      if(payload.new && payload.new.data){
+        db = payload.new.data;
+        refresh();
+      }
+    })
+    .subscribe();
 }
 
 function checkAuth(){
@@ -829,11 +829,10 @@ const today=()=>new Date().toISOString().slice(0,10);
 
 async function persist(){
   if(currentCode && db){
-    const docRef = doc(dbCloud, "stores", currentCode);
     try {
-      await setDoc(docRef, db);
+      await supabaseClient.from('stores_data').upsert({ code: currentCode, data: db });
     } catch(err) {
-      console.error("خطأ في مزامنة البيانات سحابياً:", err);
+      console.error("خطأ في المزامنة السحابية:", err);
     }
     refresh();
   }
@@ -1280,7 +1279,6 @@ function refresh(){
 }
 
 checkAuth();
-});
 </script>
 </body>
 </html>
