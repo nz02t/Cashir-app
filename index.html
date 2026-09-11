@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>نظام كاشير المحل - V51 السحابي</title>
+<title>نظام كاشير المحل - V52 السحابي</title>
 <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
 <!-- Firebase SDKs -->
@@ -576,7 +576,8 @@ th{color:#94a3b8;font-weight:600;background:rgba(15,23,42,0.3)}
 </div>
 
 <script>
-window.addEventListener('firebase-ready', () => {
+// تفعيل النظام فور جاهزية الفايربيز
+const initAppWhenReady = () => {
 "use strict";
 const $=id=>document.getElementById(id);
 const LOGGED_CODE_KEY="cashier_active_license_code";
@@ -651,7 +652,6 @@ const dbCloud = window.dbCloud;
 async function loadStoreDatabase(code, callback){
   const docRef = doc(dbCloud, "stores", code);
   
-  // الاستماع للتحديثات الفورية سحابياً
   if(unsubscribeCloud) unsubscribeCloud();
   
   unsubscribeCloud = onSnapshot(docRef, (docSnap) => {
@@ -1294,7 +1294,13 @@ function refresh(){
 }
 
 checkAuth();
-});
+};
+
+if(window.dbCloud){
+  initAppWhenReady();
+} else {
+  window.addEventListener('firebase-ready', initAppWhenReady);
+}
 </script>
 </body>
 </html>
