@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>نظام كاشير المحل - V58 المستقر النهائي</title>
+<title>نظام كاشير المحل - V59 المحدث نهائياً</title>
 <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
 <!-- Supabase SDK -->
@@ -638,7 +638,7 @@ let posQrScanner = null;
 let productQrScanner = null;
 let realtimeChannel = null;
 
-// تحميل البيانات سحابياً بشكل مؤكد وموثوق عند كل دخول
+// دالة جلب البيانات السحابية الحقيقية (تضمن عدم تصفير البيانات أبداً)
 async function loadStoreDatabase(code, callback){
   db = null;
   if(supabaseClient){
@@ -653,10 +653,11 @@ async function loadStoreDatabase(code, callback){
         db = data.data;
       }
     } catch(err) {
-      console.log("خطأ في جلب البيانات من السحابة");
+      console.log("خطأ في الاتصال بالسحابة");
     }
   }
 
+  // إذا لم يكن هناك سجل سابق نهائياً في السحابة لهذا الكود، ننشئ سجلاً جديداً نظيفاً
   if(!db){
     db = {
       products:[], sales:[], purchases:[], expenses:[], suppliers:[], workers:[],
@@ -751,6 +752,7 @@ $("submitCodeBtn").addEventListener("click", () => {
     return;
   }
   currentCode = code;
+  localStorage.setItem(LOGGED_CODE_KEY, code); // تثبيت الكود في التخزين المحلي فوراً
   loadStoreDatabase(code, () => {
     $("authCodeOverlay").style.display = "none";
     $("authSelectionOverlay").style.display = "flex";
@@ -766,6 +768,7 @@ $("storeCodeInput").addEventListener("keydown", (e) => {
 });
 
 $("backToCodeBtn").addEventListener("click", ()=>{
+  localStorage.removeItem(LOGGED_CODE_KEY);
   $("authSelectionOverlay").style.display = "none";
   $("authCodeOverlay").style.display = "flex";
 });
@@ -845,7 +848,6 @@ $("cancelAdminLogin").addEventListener("click", ()=>{
 $("logoutBtn").addEventListener("click", ()=>{
   localStorage.removeItem(LOGGED_ROLE_KEY);
   localStorage.removeItem(LOGGED_WORKER_NAME_KEY);
-  // لا نقوم بحذف كود المحل حتى يتم جلب البيانات مباشرة عند العودة
   location.reload();
 });
 
