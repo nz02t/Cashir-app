@@ -3,29 +3,9 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>نظام كاشير المحل - V52 السحابي</title>
+<title>نظام كاشير المحل - V53</title>
 <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
-<!-- Firebase SDKs -->
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-  import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-
-  const firebaseConfig = {
-    apiKey: "AIzaSyC96iEdYEAJd4aNNWhGMD15QMY3ivY76xw",
-    authDomain: "coffee-spark-ai-barista-8b8d3.firebaseapp.com",
-    projectId: "coffee-spark-ai-barista-8b8d3",
-    storageBucket: "coffee-spark-ai-barista-8b8d3.firebasestorage.app",
-    messagingSenderId: "681322715395",
-    appId: "1:681322715395:web:50e55c5217557894fd7136"
-  };
-
-  const app = initializeApp(firebaseConfig);
-  const dbCloud = getFirestore(app);
-  window.dbCloud = dbCloud;
-  window.FirebaseSdk = { doc, setDoc, getDoc, onSnapshot };
-  window.dispatchEvent(new Event('firebase-ready'));
-</script>
 <style>
 *{box-sizing:border-box}
 body{
@@ -218,10 +198,10 @@ th{color:#94a3b8;font-weight:600;background:rgba(15,23,42,0.3)}
   <div class="auth-box">
     <h2>🔑 إدخال كود المحل</h2>
     <p style="color:#94a3b8; font-size:13px; margin-bottom:15px;">أدخل كود الترخيص للمتابعة:</p>
-    <form id="authCodeForm" style="gap:10px;">
-      <input id="storeCodeInput" placeholder="كود الترخيص (مثال: STORE-4872)" required autocomplete="off" style="text-align:center; font-size:16px; font-weight:bold; letter-spacing:1px;">
-      <button type="submit" class="primary" style="width:100%; margin-top:5px;">متابعة ⬅️</button>
-    </form>
+    <div style="display:flex; flex-direction:column; gap:10px;">
+      <input id="storeCodeInput" placeholder="كود الترخيص (مثال: STORE-4872)" autocomplete="off" style="text-align:center; font-size:16px; font-weight:bold; letter-spacing:1px;">
+      <button type="button" id="submitCodeBtn" class="primary" style="width:100%; margin-top:5px; padding:12px; font-size:15px;">متابعة ⬅️</button>
+    </div>
   </div>
 </div>
 
@@ -249,13 +229,13 @@ th{color:#94a3b8;font-weight:600;background:rgba(15,23,42,0.3)}
 <div id="addWorkerModal" class="auth-overlay" style="display:none;">
   <div class="auth-box">
     <h2>➕ إنشاء كاشير لعامل جديد</h2>
-    <form id="addWorkerForm" style="gap:10px; margin-top:10px;">
-      <input id="newWorkerNameInput" placeholder="اسم العامل (مثال: أحمد، محمد...)" required style="text-align:center; font-size:14px;">
+    <div style="display:flex; flex-direction:column; gap:10px; margin-top:10px;">
+      <input id="newWorkerNameInput" placeholder="اسم العامل (مثال: أحمد، محمد...)" style="text-align:center; font-size:14px;">
       <div style="display:flex; gap:6px;">
         <button type="button" id="cancelAddWorkerBtn" style="flex:1; background:#475569;">إلغاء</button>
-        <button type="submit" class="primary" style="flex:1;">حفظ العامل</button>
+        <button type="button" id="saveWorkerBtn" class="primary" style="flex:1;">حفظ العامل</button>
       </div>
-    </form>
+    </div>
   </div>
 </div>
 
@@ -263,13 +243,13 @@ th{color:#94a3b8;font-weight:600;background:rgba(15,23,42,0.3)}
   <div class="auth-box">
     <h2>🔐 كلمة سر المدير</h2>
     <p style="color:#94a3b8; font-size:12px; margin-bottom:10px;">أدخل كلمة السر الخاصة بهذا المحل:</p>
-    <form id="adminPassForm">
-      <input type="password" id="adminPasswordInput" placeholder="كلمة السر..." required style="text-align:center; font-size:16px; margin-bottom:8px;">
+    <div style="display:flex; flex-direction:column; gap:8px;">
+      <input type="password" id="adminPasswordInput" placeholder="كلمة السر..." style="text-align:center; font-size:16px; margin-bottom:8px;">
       <div style="display:flex; gap:6px;">
         <button type="button" id="cancelAdminLogin" style="flex:1; background:#475569;">إلغاء</button>
-        <button type="submit" class="primary" style="flex:1;">دخول</button>
+        <button type="button" id="submitAdminPassBtn" class="primary" style="flex:1;">دخول</button>
       </div>
-    </form>
+    </div>
   </div>
 </div>
 
@@ -328,16 +308,16 @@ th{color:#94a3b8;font-weight:600;background:rgba(15,23,42,0.3)}
 
     <div id="quickAddProductBox" style="display:none; background:#1e293b; border:1px solid #38bdf8; padding:10px; border-radius:8px; margin-top:8px;">
       <div style="color:#38bdf8; font-size:13px; font-weight:bold; margin-bottom:6px;">⚠️ الباركود غير مسجل! هل تريد إضافته بسرعة؟</div>
-      <form id="quickAddForm" style="gap:6px;">
+      <div style="display:flex; flex-direction:column; gap:6px;">
         <input id="qBarcode" readonly style="background:#0f172a; color:#94a3b8; font-size:12px;">
-        <input id="qName" placeholder="اسم المنتج الجديد" required style="font-size:13px;">
+        <input id="qName" placeholder="اسم المنتج الجديد" style="font-size:13px;">
         <div style="display:flex; gap:6px;">
-          <input id="qBuy" type="number" step="0.01" min="0" placeholder="شراء" required style="font-size:13px;">
-          <input id="qSell" type="number" step="0.01" min="0" placeholder="بيع" required style="font-size:13px;">
-          <input id="qStock" type="number" min="1" value="10" placeholder="الكمية" required style="font-size:13px;">
+          <input id="qBuy" type="number" step="0.01" min="0" placeholder="شراء" style="font-size:13px;">
+          <input id="qSell" type="number" step="0.01" min="0" placeholder="بيع" style="font-size:13px;">
+          <input id="qStock" type="number" min="1" value="10" placeholder="الكمية" style="font-size:13px;">
         </div>
-        <button type="submit" class="primary" style="margin-top:4px; font-size:13px;">✨ حفظ وإضافة للسلة مباشرة</button>
-      </form>
+        <button type="button" id="quickSaveProductBtn" class="primary" style="margin-top:4px; font-size:13px;">✨ حفظ وإضافة للسلة مباشرة</button>
+      </div>
     </div>
 
     <div id="productHint"></div>
@@ -405,7 +385,7 @@ th{color:#94a3b8;font-weight:600;background:rgba(15,23,42,0.3)}
 <section id="products" class="page">
   <h2 data-i18n="products" style="font-size:16px; margin-top:0;">المنتجات</h2>
   <div class="panel">
-    <form id="productForm">
+    <div style="display:flex; flex-direction:column; gap:8px;" id="productForm">
       <input type="hidden" id="editId">
       <input id="pBarcode" placeholder="Barcode" required>
       <button type="button" id="cameraBtn" data-i18n="scanBtn" style="font-size:12px;">📷 تصوير الباركود</button>
@@ -440,9 +420,9 @@ th{color:#94a3b8;font-weight:600;background:rgba(15,23,42,0.3)}
       <input id="pBuy" type="number" min="0" step="0.01" placeholder="سعر الشراء" required>
       <input id="pSell" type="number" min="0" step="0.01" placeholder="سعر البيع" required>
       <input id="pMin" type="number" min="0" value="5" placeholder="الحد الأدنى للتنبيه">
-      <button type="submit" class="primary" data-i18n="saveProduct">حفظ المنتج</button>
+      <button type="button" id="saveProductBtn" class="primary" data-i18n="saveProduct">حفظ المنتج</button>
       <button type="button" id="cancelEdit" data-i18n="cancel">إلغاء</button>
-    </form>
+    </div>
   </div>
   <div class="panel">
     <input id="productSearch" placeholder="بحث بالاسم أو Barcode" style="width:100%; margin-bottom:8px;">
@@ -480,7 +460,7 @@ th{color:#94a3b8;font-weight:600;background:rgba(15,23,42,0.3)}
 <section id="storeInfo" class="page">
   <h2 data-i18n="storeInfo" style="font-size:16px; margin-top:0;">بيانات المحل</h2>
   <div class="panel">
-    <form id="storeInfoForm" style="flex-direction:column; gap:10px;">
+    <div style="display:flex; flex-direction:column; gap:10px;" id="storeInfoForm">
       <label data-i18n="storeName">اسم المحل / المتجر</label>
       <input id="stName" placeholder="اسم المحل" required>
       <label data-i18n="phone">رقم الهاتف</label>
@@ -489,8 +469,8 @@ th{color:#94a3b8;font-weight:600;background:rgba(15,23,42,0.3)}
       <input id="stAddress" placeholder="العنوان التجاري">
       <label data-i18n="receiptMsg">رسالة ترحيبية في الفاتورة</label>
       <textarea id="stFooter" rows="2" placeholder="مثال: شكراً لزيارتكم ❤️"></textarea>
-      <button type="submit" class="primary" style="width:100%; margin-top:6px;" data-i18n="saveStore">حفظ بيانات المحل</button>
-    </form>
+      <button type="button" id="saveStoreBtn" class="primary" style="width:100%; margin-top:6px;" data-i18n="saveStore">حفظ بيانات المحل</button>
+    </div>
   </div>
 </section>
 
@@ -513,12 +493,12 @@ th{color:#94a3b8;font-weight:600;background:rgba(15,23,42,0.3)}
   <h2 data-i18n="suppliers" style="font-size:16px; margin-top:0;">إدارة الموردين</h2>
   <div class="panel">
     <h3 data-i18n="addSupplier" style="font-size:14px; margin-top:0;">إضافة مورد جديد</h3>
-    <form id="supplierForm">
+    <div style="display:flex; flex-direction:column; gap:8px;" id="supplierForm">
       <input id="sName" placeholder="اسم المورد / الشركة" required>
       <input id="sPhone" placeholder="رقم الهاتف">
       <input id="sNote" placeholder="ملاحظات / العنوان">
-      <button type="submit" class="primary" style="width:100%" data-i18n="saveSupplier">حفظ المورد</button>
-    </form>
+      <button type="button" id="saveSupplierBtn" class="primary" style="width:100%" data-i18n="saveSupplier">حفظ المورد</button>
+    </div>
   </div>
   <div class="panel">
     <h3 data-i18n="suppliersList" style="font-size:14px; margin-top:0;">قائمة الموردين</h3>
@@ -529,13 +509,13 @@ th{color:#94a3b8;font-weight:600;background:rgba(15,23,42,0.3)}
 <section id="purchases" class="page">
   <h2 data-i18n="purchases" style="font-size:16px; margin-top:0;">المشتريات</h2>
   <div class="panel">
-    <form id="purchaseForm">
+    <div style="display:flex; flex-direction:column; gap:8px;" id="purchaseForm">
       <select id="purchaseProduct"></select>
       <select id="purchaseSupplier"><option value="" data-i18n="selectSupplier">اختر المورد (اختياري)</option></select>
       <input id="purchaseQty" type="number" min="1" placeholder="الكمية" required>
       <input id="purchasePrice" type="number" min="0" step="0.01" placeholder="سعر الشراء" required>
-      <button type="submit" class="primary" data-i18n="savePurchase">تسجيل الشراء</button>
-    </form>
+      <button type="button" id="savePurchaseBtn" class="primary" data-i18n="savePurchase">تسجيل الشراء</button>
+    </div>
   </div>
   <div class="panel"><div class="table-wrap" id="purchasesTable"></div></div>
 </section>
@@ -543,12 +523,12 @@ th{color:#94a3b8;font-weight:600;background:rgba(15,23,42,0.3)}
 <section id="expenses" class="page">
   <h2 data-i18n="expenses" style="font-size:16px; margin-top:0;">المصاريف</h2>
   <div class="panel">
-    <form id="expenseForm">
+    <div style="display:flex; flex-direction:column; gap:8px;" id="expenseForm">
       <input id="expenseName" placeholder="نوع المصروف" required>
       <input id="expenseAmount" type="number" min="0" step="0.01" placeholder="المبلغ" required>
       <input id="expenseNote" placeholder="ملاحظة">
-      <button type="submit" class="primary" data-i18n="saveExpense">تسجيل المصروف</button>
-    </form>
+      <button type="button" id="saveExpenseBtn" class="primary" data-i18n="saveExpense">تسجيل المصروف</button>
+    </div>
   </div>
   <div class="panel"><div class="table-wrap" id="expensesTable"></div></div>
 </section>
@@ -556,10 +536,10 @@ th{color:#94a3b8;font-weight:600;background:rgba(15,23,42,0.3)}
 <section id="reports" class="page">
   <h2 data-i18n="reports" style="font-size:16px; margin-top:0;">التقارير العامة</h2>
   <div class="panel">
-    <form id="reportForm">
+    <div style="display:flex; flex-direction:column; gap:8px;" id="reportForm">
       <input id="fromDate" type="date"><input id="toDate" type="date">
-      <button type="submit" class="primary" data-i18n="calcReport">حساب التقرير</button>
-    </form>
+      <button type="button" id="calcReportBtn" class="primary" data-i18n="calcReport">حساب التقرير</button>
+    </div>
     <div id="reportResult"></div>
   </div>
 </section>
@@ -575,9 +555,29 @@ th{color:#94a3b8;font-weight:600;background:rgba(15,23,42,0.3)}
   </div>
 </div>
 
+<!-- Firebase SDKs -->
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+  import { getFirestore, doc, setDoc, getDoc, onSnapshot } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyC96iEdYEAJd4aNNWhGMD15QMY3ivY76xw",
+    authDomain: "coffee-spark-ai-barista-8b8d3.firebaseapp.com",
+    projectId: "coffee-spark-ai-barista-8b8d3",
+    storageBucket: "coffee-spark-ai-barista-8b8d3.firebasestorage.app",
+    messagingSenderId: "681322715395",
+    appId: "1:681322715395:web:50e55c5217557894fd7136"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const dbCloud = getFirestore(app);
+  window.dbCloud = dbCloud;
+  window.FirebaseSdk = { doc, setDoc, getDoc, onSnapshot };
+  window.dispatchEvent(new Event('firebase-ready'));
+</script>
+
 <script>
-// تفعيل النظام فور جاهزية الفايربيز
-const initAppWhenReady = () => {
+window.addEventListener('firebase-ready', () => {
 "use strict";
 const $=id=>document.getElementById(id);
 const LOGGED_CODE_KEY="cashier_active_license_code";
@@ -651,7 +651,6 @@ const dbCloud = window.dbCloud;
 
 async function loadStoreDatabase(code, callback){
   const docRef = doc(dbCloud, "stores", code);
-  
   if(unsubscribeCloud) unsubscribeCloud();
   
   unsubscribeCloud = onSnapshot(docRef, (docSnap) => {
@@ -689,13 +688,11 @@ function checkAuth(){
       if(!selectedAdminViewingWorker){
         selectedAdminViewingWorker = currentWorkerName;
       }
-      
       $("currentUserBadge").textContent = (currentRole === 'admin' ? '👑 مدير' : '👨‍💼 ' + currentWorkerName) + ' (' + currentCode + ')';
       $("authCodeOverlay").style.display="none";
       $("authSelectionOverlay").style.display="none";
       $("adminPassOverlay").style.display="none";
       $("addWorkerModal").style.display="none";
-      
       applyRolePermissions();
       setLanguage(currentLang);
     });
@@ -711,7 +708,6 @@ function checkAuth(){
 function applyRolePermissions(){
   const adminElements = document.querySelectorAll(".admin-only-el");
   const adminMenu = $("adminMenuSection");
-  
   if(currentRole === 'admin'){
     if(adminMenu) adminMenu.style.display = "contents";
     adminElements.forEach(el => el.style.display = "block");
@@ -721,20 +717,25 @@ function applyRolePermissions(){
   }
 }
 
-$("authCodeForm").addEventListener("submit", async e=>{
-  e.preventDefault();
+$("submitCodeBtn").addEventListener("click", () => {
   const code = $("storeCodeInput").value.trim().toUpperCase();
   if(!STORE_CREDENTIALS[code]){
     alert("❌ كود الترخيص غير مسجل في النظام!");
     return;
   }
   currentCode = code;
-  
   loadStoreDatabase(code, () => {
     $("authCodeOverlay").style.display = "none";
     $("authSelectionOverlay").style.display = "flex";
     renderWorkersSelectionList();
   });
+});
+
+$("storeCodeInput").addEventListener("keydown", (e) => {
+  if(e.key === "Enter"){
+    e.preventDefault();
+    $("submitCodeBtn").click();
+  }
 });
 
 $("backToCodeBtn").addEventListener("click", ()=>{
@@ -774,16 +775,13 @@ $("cancelAddWorkerBtn").addEventListener("click", ()=>{
   $("addWorkerModal").style.display = "none";
 });
 
-$("addWorkerForm").addEventListener("submit", async e=>{
-  e.preventDefault();
+$("saveWorkerBtn").addEventListener("click", async () => {
   const wName = $("newWorkerNameInput").value.trim();
   if(!wName) return;
-  
   if(db.workers.some(w => w.name.toLowerCase() === wName.toLowerCase())){
     alert("⚠️ اسم العامل موجود مسبقاً!");
     return;
   }
-  
   db.workers.push({ id: Date.now(), name: wName });
   await persist();
   $("addWorkerModal").style.display = "none";
@@ -798,11 +796,9 @@ $("selectAdminBtn").addEventListener("click", ()=>{
   $("adminPasswordInput").focus();
 });
 
-$("adminPassForm").addEventListener("submit", e=>{
-  e.preventDefault();
+$("submitAdminPassBtn").addEventListener("click", () => {
   const pass = $("adminPasswordInput").value.trim();
   const correctPassword = STORE_CREDENTIALS[currentCode];
-
   if(pass !== correctPassword){
     alert("❌ كلمة سر المدير غير صحيحة لهذا المحل!");
     return;
@@ -888,7 +884,7 @@ function addCart(p){
  renderCart();
 }
 
-async function addFromScan(){
+function addFromScan(){
  const q=$("scan").value.trim();
  if(!q){alert("اكتب Barcode أو اسم المنتج");$("scan").focus();return;}
  const p=findProduct(q);
@@ -906,8 +902,7 @@ async function addFromScan(){
  addCart(p);$("scan").value="";$("productHint").innerHTML='<div class="success">تمت إضافة المنتج ✓</div>';$("scan").focus();
 }
 
-$("quickAddForm").addEventListener("submit", async e=>{
-  e.preventDefault();
+$("quickSaveProductBtn").addEventListener("click", async () => {
   const barcode = $("qBarcode").value.trim();
   const name = $("qName").value.trim();
   const buy = Number($("qBuy").value) || 0;
@@ -1064,26 +1059,21 @@ $("completeSale").addEventListener("click",async ()=>{
 
 function renderWorkerReport(){
   if(!db) return;
-  
   const buttonsContainer = $("adminWorkerButtonsContainer");
   const tabsList = $("workersTabsList");
-  
   let targetWorker = selectedAdminViewingWorker;
   if(currentRole !== 'admin'){
     targetWorker = currentWorkerName;
   } else {
     buttonsContainer.style.display = "block";
-    
     let allWorkersSet = new Set();
     if(db.workers) db.workers.forEach(w => allWorkersSet.add(w.name));
     if(db.sales) db.sales.forEach(s => { if(s.workerName) allWorkersSet.add(s.workerName); });
-    
     let tabsHtml = '';
     allWorkersSet.forEach(wName => {
       const isActive = (targetWorker === wName) ? 'active' : '';
       tabsHtml += `<button type="button" class="worker-tab-btn ${isActive}" onclick="switchWorkerReport('${esc(wName)}')">👨‍💼 ${esc(wName)}</button>`;
     });
-    
     if(!tabsHtml){
       tabsHtml = '<span class="muted" style="font-size:12px;">لا توجد عمال مسجلة حالياً</span>';
       targetWorker = currentWorkerName;
@@ -1095,20 +1085,15 @@ function renderWorkerReport(){
     }
     tabsList.innerHTML = tabsHtml;
   }
-  
   $("workerReportHeader").textContent = `اسم الكاشير المُعروض: ${targetWorker} (الكود: ${currentCode})`;
-  
   const workerSales = db.sales.filter(s => String(s.workerName || 'عامل').toLowerCase() === String(targetWorker).toLowerCase());
-  
   const totalSalesVal = workerSales.reduce((acc, s) => acc + s.total, 0);
   const totalProfitVal = workerSales.reduce((acc, s) => acc + s.profit, 0);
   const totalPaidVal = workerSales.reduce((acc, s) => acc + s.paid, 0);
-  
   $("wrTotalSales").textContent = money(totalSalesVal);
   $("wrInvoicesCount").textContent = workerSales.length;
   $("wrTotalProfit").textContent = money(totalProfitVal);
   $("wrTotalPaid").textContent = money(totalPaidVal);
-  
   $("workerInvoicesTableBody").innerHTML = workerSales.length ? workerSales.slice().reverse().map(s=>`
     <tr>
       <td><b>#${s.invoiceNo}</b></td>
@@ -1131,8 +1116,7 @@ window.viewInvoice = function(invoiceNo){
   if(sale){ showReceipt(sale); }else{ alert("لم يتم العثور على الفاتورة!"); }
 };
 
-$("storeInfoForm").addEventListener("submit",async e=>{
- e.preventDefault();
+$("saveStoreBtn").addEventListener("click", async () => {
  db.storeInfo = { name: $("stName").value.trim(), phone: $("stPhone").value.trim(), address: $("stAddress").value.trim(), footer: $("stFooter").value.trim() };
  await persist();
  alert("تم حفظ بيانات المحل بنجاح!");
@@ -1178,8 +1162,7 @@ $("importBackupBtn").addEventListener("click",()=>{
   reader.readAsText(file);
 });
 
-$("productForm").addEventListener("submit",async e=>{
- e.preventDefault();
+$("saveProductBtn").addEventListener("click", async () => {
  const id=$("editId").value?Number($("editId").value):Date.now();
  const buyPrice = Number($("pBuy").value)||0;
  const sellPrice = Number($("pSell").value)||0;
@@ -1188,10 +1171,11 @@ $("productForm").addEventListener("submit",async e=>{
  if(!p.barcode||!p.name){alert("Barcode واسم المنتج مطلوبان");return;}
  if(db.products.some(x=>x.barcode===p.barcode&&x.id!==id)){alert("Barcode موجود مسبقاً");return;}
  const idx=db.products.findIndex(x=>x.id===id);if(idx>=0)db.products[idx]=p;else db.products.push(p);
- e.target.reset();$("editId").value="";$("pMin").value=5;await persist();
+ $("editId").value="";$("pMin").value=5;
+ await persist();
  alert("تم حفظ المنتج ✓");
 });
-$("cancelEdit").addEventListener("click",()=>{$("productForm").reset();$("editId").value="";$("pMin").value=5});
+$("cancelEdit").addEventListener("click",()=>{$("editId").value="";$("pMin").value=5});
 $("productSearch").addEventListener("input",renderProducts);
 
 $("productsTable").addEventListener("click",async e=>{
@@ -1203,26 +1187,28 @@ $("productsTable").addEventListener("click",async e=>{
  if(b.dataset.action==="delete"&&confirm("حذف المنتج؟")){db.products=db.products.filter(x=>x.id!==p.id);await persist();}
 });
 
-$("supplierForm").addEventListener("submit",async e=>{
-  e.preventDefault();
+$("saveSupplierBtn").addEventListener("click", async () => {
   const name=$("sName").value.trim(), phone=$("sPhone").value.trim(), note=$("sNote").value.trim();
   if(!name) return;
   db.suppliers.push({id:Date.now(), name, phone, note});
-  e.target.reset(); await persist(); alert("تمت إضافة المورد");
+  await persist(); 
+  alert("تمت إضافة المورد");
 });
 
 $("purchaseProduct").addEventListener("change",()=>{const p=productById($("purchaseProduct").value);if(p)$("purchasePrice").value=p.buy});
-$("purchaseForm").addEventListener("submit",async e=>{
- e.preventDefault();const p=productById($("purchaseProduct").value),qty=Number($("purchaseQty").value),price=Number($("purchasePrice").value), sId=$("purchaseSupplier").value;
+$("savePurchaseBtn").addEventListener("click", async () => {
+ const p=productById($("purchaseProduct").value),qty=Number($("purchaseQty").value),price=Number($("purchasePrice").value), sId=$("purchaseSupplier").value;
  if(!p||qty<=0){alert("اختر المنتج والكمية");return;}
- p.stock+=qty;p.buy=price;db.purchases.push({id:Date.now(),date:new Date().toISOString(),productId:p.id,supplierId:sId||null,qty,price,total:qty*price});e.target.reset();await persist();
+ p.stock+=qty;p.buy=price;db.purchases.push({id:Date.now(),date:new Date().toISOString(),productId:p.id,supplierId:sId||null,qty,price,total:qty*price});
+ await persist();
 });
-$("expenseForm").addEventListener("submit",async e=>{
- e.preventDefault();const amount=Number($("expenseAmount").value)||0;if(amount<0)return;
- db.expenses.push({id:Date.now(),date:new Date().toISOString(),name:$("expenseName").value.trim(),amount,note:$("expenseNote").value.trim()});e.target.reset();await persist();
+$("saveExpenseBtn").addEventListener("click", async () => {
+ const amount=Number($("expenseAmount").value)||0;if(amount<0)return;
+ db.expenses.push({id:Date.now(),date:new Date().toISOString(),name:$("expenseName").value.trim(),amount,note:$("expenseNote").value.trim()});
+ await persist();
 });
-$("reportForm").addEventListener("submit",e=>{
- e.preventDefault();const f=$("fromDate").value||"0000-01-01",t=$("toDate").value||"9999-12-31";
+$("calcReportBtn").addEventListener("click", () => {
+ const f=$("fromDate").value||"0000-01-01",t=$("toDate").value||"9999-12-31";
  const ss=db.sales.filter(x=>dateOnly(x.date)>=f&&dateOnly(x.date)<=t),pp=db.purchases.filter(x=>dateOnly(x.date)>=f&&dateOnly(x.date)<=t),ee=db.expenses.filter(x=>dateOnly(x.date)>=f&&dateOnly(x.date)<=t);
  const sales=ss.reduce((a,x)=>a+x.total,0),profit=ss.reduce((a,x)=>a+x.profit,0),purch=pp.reduce((a,x)=>a+x.total,0),exp=ee.reduce((a,x)=>a+x.amount,0);
  $("reportResult").innerHTML=`<div class="card" style="padding:10px;"><h3 style="margin:0 0 6px 0; font-size:13px;">التقرير العام (${f} إلى ${t})</h3><p style="margin:2px 0;">المبيعات: <b>${money(sales)}</b></p><p style="margin:2px 0;">المشتريات: <b>${money(purch)}</b></p><p style="margin:2px 0;">المصاريف: <b>${money(exp)}</b></p><p style="margin:2px 0;">الربح التجاري: <b>${money(profit)}</b></p><p style="margin:2px 0;">صافي الربح: <b>${money(profit-exp)}</b></p></div>`;
@@ -1294,13 +1280,7 @@ function refresh(){
 }
 
 checkAuth();
-};
-
-if(window.dbCloud){
-  initAppWhenReady();
-} else {
-  window.addEventListener('firebase-ready', initAppWhenReady);
-}
+});
 </script>
 </body>
 </html>
