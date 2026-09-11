@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>نظام كاشير المحل - V57 السحابي المتكامل</title>
+<title>نظام كاشير المحل - V58 المستقر النهائي</title>
 <script src="https://unpkg.com/html5-qrcode" type="text/javascript"></script>
 <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
 <!-- Supabase SDK -->
@@ -638,7 +638,7 @@ let posQrScanner = null;
 let productQrScanner = null;
 let realtimeChannel = null;
 
-// تحميل البيانات مباشرة من السحابة لضمان المزامنة التامة بين كل المتصفحات
+// تحميل البيانات سحابياً بشكل مؤكد وموثوق عند كل دخول
 async function loadStoreDatabase(code, callback){
   db = null;
   if(supabaseClient){
@@ -653,11 +653,10 @@ async function loadStoreDatabase(code, callback){
         db = data.data;
       }
     } catch(err) {
-      console.log("خطأ في الاتصال السحابي، جاري فحص المخزون المحلي");
+      console.log("خطأ في جلب البيانات من السحابة");
     }
   }
 
-  // إذا لم توجد بيانات سحابياً، ننشئ بيانات جديدة ونحفظها في السحابة فوراً
   if(!db){
     db = {
       products:[], sales:[], purchases:[], expenses:[], suppliers:[], workers:[],
@@ -673,7 +672,7 @@ async function loadStoreDatabase(code, callback){
   if(callback) callback(db);
   refresh();
 
-  // تفعيل المزامنة اللحظية الفورية بين الأجهزة والمتصفحات
+  // تفعيل المزامنة اللحظية الفورية
   if(supabaseClient && !realtimeChannel){
     try {
       realtimeChannel = supabaseClient
@@ -844,9 +843,9 @@ $("cancelAdminLogin").addEventListener("click", ()=>{
 });
 
 $("logoutBtn").addEventListener("click", ()=>{
-  localStorage.removeItem(LOGGED_CODE_KEY);
   localStorage.removeItem(LOGGED_ROLE_KEY);
   localStorage.removeItem(LOGGED_WORKER_NAME_KEY);
+  // لا نقوم بحذف كود المحل حتى يتم جلب البيانات مباشرة عند العودة
   location.reload();
 });
 
@@ -861,7 +860,7 @@ async function persist(){
       try {
         await supabaseClient.from('stores_data').upsert({ code: currentCode, data: db });
       } catch(err) {
-        console.error("خطأ في المزامنة السحابية:", err);
+        console.error("خطأ في الحفظ السحابي:", err);
       }
     }
     refresh();
